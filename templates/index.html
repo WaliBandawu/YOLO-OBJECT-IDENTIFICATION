@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO Object Detection</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8 text-center">YOLO Object Detection</h1>
+
+        <!-- Upload Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Upload Media</h2>
+            <form id="uploadForm" class="space-y-4">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center" id="dropZone">
+                    <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                    <p class="mb-4">Drag and drop files here or click to select</p>
+                    <input type="file" id="fileInput" name="file" accept="image/*,video/*" class="hidden">
+                    <button type="button" id="selectFileBtn" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600">
+                        Select File
+                    </button>
+                </div>
+
+                <!-- File Preview -->
+                <div id="filePreview" class="hidden">
+                    <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                        <div class="flex-1 max-w-md">
+                            <p id="fileName" class="font-medium truncate"></p>
+                            <p id="fileSize" class="text-sm text-gray-500"></p>
+                        </div>
+                        <button type="button" id="removeFile" class="text-red-500 hover:text-red-700">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="text-right">
+                    <button type="submit" id="processButton" class="bg-green-500 text-white px-8 py-2 rounded-lg hover:bg-green-600 hidden">
+                        Process
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="hidden">
+            <div class="flex justify-center items-center space-x-2 mb-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span>Processing...</span>
+            </div>
+        </div>
+
+        <!-- Results Display -->
+        <div id="resultsContainer" class="hidden space-y-8">
+            <!-- Image Results -->
+            <div id="imageResults" class="hidden">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4">Detection Results</h2>
+                    
+                    <!-- Media Display -->
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <!-- Original Image -->
+                        <div>
+                            <h3 class="font-medium mb-2">Original Image</h3>
+                            <div class="relative">
+                                <img id="originalImage" class="w-full rounded-lg" alt="Original image">
+                            </div>
+                        </div>
+                        
+                        <!-- Processed Image -->
+                        <div>
+                            <h3 class="font-medium mb-2">Processed Image</h3>
+                            <div class="relative">
+                                <img id="processedImage" class="w-full rounded-lg" alt="Processed image">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detections List -->
+                    <div class="mt-6">
+                        <h3 class="font-medium mb-2">Detected Objects</h3>
+                        <div id="detectionsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video Results -->
+            <div id="videoResults" class="hidden">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4">Video Analysis</h2>
+                    
+                    <!-- Video Player -->
+                    <div class="mb-6">
+                        <video id="processedVideo" class="w-full rounded-lg" controls>
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+
+                    <!-- Detection Statistics -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-gray-50 p-4 rounded-lg text-center">
+                            <p class="text-sm text-gray-500">Total Frames</p>
+                            <p id="totalFrames" class="text-xl font-semibold">0</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg text-center">
+                            <p class="text-sm text-gray-500">Objects Detected</p>
+                            <p id="totalObjects" class="text-xl font-semibold">0</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg text-center">
+                            <p class="text-sm text-gray-500">Detection Rate</p>
+                            <p id="detectionRate" class="text-xl font-semibold">0%</p>
+                        </div>
+                    </div>
+
+                    <!-- Frame-by-frame Analysis -->
+                    <div id="frameAnalysis" class="space-y-4">
+                        <h3 class="font-medium">Frame Analysis</h3>
+                        <div id="framesList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Display -->
+        <div id="errorDisplay" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8">
+            <strong class="font-bold">Error: </strong>
+            <span id="errorMessage"></span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('uploadForm');
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            const selectFileBtn = document.getElementById('selectFileBtn');
+            const filePreview = document.getElementById('filePreview');
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+            const removeFile = document.getElementById('removeFile');
+            const processButton = document.getElementById('processButton');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const imageResults = document.getElementById('imageResults');
+            const videoResults = document.getElementById('videoResults');
+            const errorDisplay = document.getElementById('errorDisplay');
+            const errorMessage = document.getElementById('errorMessage');
+
+            let selectedFile = null;
+
+            // File selection handling
+            function handleFileSelect(file) {
+                selectedFile = file;
+                fileName.textContent = file.name;
+                fileSize.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+                filePreview.classList.remove('hidden');
+                processButton.classList.remove('hidden');
+
+                // Create preview if it's an image
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        document.getElementById('originalImage').src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            // Drag and drop handling
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-blue-500');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-blue-500');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-blue-500');
+                handleFileSelect(e.dataTransfer.files[0]);
+            });
+
+            // Button handlers
+            selectFileBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+            removeFile.addEventListener('click', () => {
+                fileInput.value = '';
+                filePreview.classList.add('hidden');
+                processButton.classList.add('hidden');
+                selectedFile = null;
+            });
+
+            // Form submission
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!selectedFile) return;
+
+                try {
+                    // Show loading state
+                    loadingIndicator.classList.remove('hidden');
+                    resultsContainer.classList.add('hidden');
+                    errorDisplay.classList.add('hidden');
+
+                    const formData = new FormData();
+                    formData.append('file', selectedFile);
+
+                    const response = await fetch('/detect', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Detection failed');
+                    }
+
+                    const data = await response.json();
+                    
+                    // Show results
+                    resultsContainer.classList.remove('hidden');
+                    
+                    if (selectedFile.type.startsWith('image/')) {
+                        displayImageResults(data);
+                    } else if (selectedFile.type.startsWith('video/')) {
+                        displayVideoResults(data);
+                    }
+
+                } catch (error) {
+                    errorMessage.textContent = error.message;
+                    errorDisplay.classList.remove('hidden');
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                }
+            });
+
+            // Display image results
+            function displayImageResults(data) {
+                imageResults.classList.remove('hidden');
+                videoResults.classList.add('hidden');
+
+                // Display processed image
+                const processedImage = document.getElementById('processedImage');
+                processedImage.src = `/results/${data.annotated_image}`;
+
+                // Display detections
+                const detectionsList = document.getElementById('detectionsList');
+                detectionsList.innerHTML = '';
+
+                data.detections.forEach(detection => {
+                    const detectionEl = document.createElement('div');
+                    detectionEl.className = 'bg-gray-50 p-4 rounded-lg';
+                    detectionEl.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">${detection.class}</span>
+                            <span class="text-sm text-gray-500">
+                                ${(detection.confidence * 100).toFixed(1)}%
+                            </span>
+                        </div>
+                    `;
+                    detectionsList.appendChild(detectionEl);
+                });
+            }
+
+            // Display video results
+            function displayVideoResults(data) {
+                imageResults.classList.add('hidden');
+                videoResults.classList.remove('hidden');
+                // Add the console.log statement here
+                console.log('Response data:', data);
+
+                // Update statistics
+                document.getElementById('totalFrames').textContent = data.video_analysis.total_frames;
+                document.getElementById('totalObjects').textContent = 
+                    data.video_analysis.detections.reduce((sum, frame) => sum + frame.detections.length, 0);
+                
+                const detectionRate = (data.video_analysis.frames_with_detections / data.video_analysis.total_frames * 100).toFixed(1);
+                document.getElementById('detectionRate').textContent = `${detectionRate}%`;
+
+                // Display frame analysis
+                const framesList = document.getElementById('framesList');
+                framesList.innerHTML = '';
+
+                data.video_analysis.detections.forEach(frame => {
+                    const frameEl = document.createElement('div');
+                    frameEl.className = 'bg-gray-50 p-4 rounded-lg';
+                    
+                    const objectList = frame.detections
+                        .map(d => `${d.class} (${(d.confidence * 100).toFixed(1)}%)`)
+                        .join(', ');
+
+                    frameEl.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium">Frame ${frame.frame}</span>
+                            <span class="text-sm text-gray-500">
+                                ${frame.detections.length} objects detected
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-1">${objectList}</p>
+                    `;
+                    framesList.appendChild(frameEl);
+                });
+
+                // Display processed video if available
+                const videoPlayer = document.getElementById('processedVideo');
+                if (data.video_analysis.output_video) {
+                    videoPlayer.src = `/results/${data.video_analysis.output_video}`;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
